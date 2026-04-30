@@ -1,0 +1,59 @@
+Cottage
+A cozy wooden cottage. There's a table with a dusty old map.
+You see: map
+Exits: north east south
+You take the map.
+Forest
+Tall trees surround you. A rope dangles from a branch.
+You see: rope
+Exits: east south
+You take the rope.
+Clearing
+Sunlight filters through the leaves.
+You see: lantern
+Exits: south west
+You take the lantern.
+The lantern flickers to life.
+Forest
+Tall trees surround you.
+Exits: east south
+Cottage
+A cozy wooden cottage.
+Exits: north east south
+Hill
+From the hilltop you see a bridge and, far beyond, a stone gate.
+Exits: north east
+Dark Cave
+The cave is damp and cold. Shadows dance on the walls.
+You see: pickaxe
+Exits: west
+You take the pickaxe.
+Hill
+From the hilltop you see a bridge and, far beyond, a stone gate.
+Exits: north east
+Cottage
+A cozy wooden cottage.
+Exits: north east south
+Riverbank
+Rapids block the river. A bridge lies east.
+Exits: east west
+Bridge
+Planks are missing. It might be repaired with something sturdy.
+Exits: west
+You secure the rope and fix the bridge.
+Bridge
+The bridge appears to be passable now.
+Exits: south west
+Stone Gate
+A stone archway blocked by rubble.
+Exits: north
+You smash the rubble aside. The way is clear.
+Stone Gate
+A stone archway.
+Exits: north east
+Ancient Shrine
+A silent shrine. On a pedestal rests a glowing artifact.
+You see: artifact
+Exits: west
+As you grasp the artifact, light floods the shrine.
+You have retrieved the Artifact of the Ancients. Victory!

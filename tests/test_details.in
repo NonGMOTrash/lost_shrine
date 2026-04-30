@@ -1,0 +1,44 @@
+help
+inventory
+examine map
+drop map
+take map
+inventory
+examine map
+use map
+look
+go east
+go east
+go south
+use rope
+go west
+go west
+go north
+take rope
+inventory
+go east
+take lantern
+light lantern
+light lantern
+go south
+go south
+inventory
+go north
+go east
+go south
+inventory
+take map
+take rope
+take lantern
+inventory
+light lantern
+examine lantern
+drop rope
+inventory
+drop map
+inventory
+go north
+go west
+go south
+xyz
+quit

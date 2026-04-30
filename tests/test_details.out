@@ -1,0 +1,81 @@
+Cottage
+A cozy wooden cottage. There's a table with a dusty old map.
+You see: map
+Exits: north east south
+Commands: go <north|east|south|west>, take <item>, drop <item>, examine <item>, use <item>, inventory, look, help, quit
+You are carrying nothing.
+A dusty old map, faded but readable.
+You aren't carrying that.
+You take the map.
+You are carrying: map
+A dusty old map, faded but readable.
+You study the faded map. A river, a cave, and a gate are marked.
+Cottage
+A cozy wooden cottage.
+Exits: north east south
+Riverbank
+Rapids block the river. A bridge lies east.
+Exits: east west
+Bridge
+Planks are missing. It might be repaired with something sturdy.
+Exits: west
+You can't go that way.
+Nothing happens.
+Riverbank
+Rapids block the river. A bridge lies east.
+Exits: east west
+Cottage
+A cozy wooden cottage.
+Exits: north east south
+Forest
+Tall trees surround you. A rope dangles from a branch.
+You see: rope
+Exits: east south
+You take the rope.
+You are carrying: map rope
+Clearing
+Sunlight filters through the leaves.
+You see: lantern
+Exits: south west
+You take the lantern.
+The lantern flickers to life.
+Swamp Edge
+A murky swamp lies south. The ground looks unstable.
+Exits: north south
+You sink into quicksand! Everything goes black...
+Cottage
+A cozy wooden cottage.
+Exits: north east south
+You are carrying nothing.
+Forest
+Tall trees surround you.
+Exits: east south
+Clearing
+Sunlight filters through the leaves.
+Exits: south west
+Swamp Edge
+A murky swamp lies south. The ground looks unstable.
+You see: lantern map rope
+Exits: north south
+You are carrying nothing.
+You take the map.
+You take the rope.
+You take the lantern.
+You are carrying: lantern map rope
+The lantern flickers to life.
+An old lantern. It is lit.
+You drop the rope.
+You are carrying: lantern map
+You drop the map.
+You are carrying: lantern
+Clearing
+Sunlight filters through the leaves.
+Exits: south west
+Forest
+Tall trees surround you.
+Exits: east south
+Cottage
+A cozy wooden cottage.
+Exits: north east south
+I don't understand that.
+Goodbye.
