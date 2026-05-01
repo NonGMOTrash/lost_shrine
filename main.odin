@@ -12,6 +12,7 @@ Dir :: enum u8 {
 }
 
 RoomID :: enum u8 {
+	NullRoom,
 	Cottage,
 	Forest,
 	Clearing,
@@ -21,7 +22,8 @@ RoomID :: enum u8 {
 	Bridge,
 	StoneGate,
 	DarkCave,
-	AncientShrine
+	AncientShrine,
+	Quicksand
 }
 
 Room :: struct {
@@ -32,6 +34,7 @@ Room :: struct {
 }
 
 ItemID :: enum u8 {
+	NullItem,
 	Map,
 	Rope,
 	Lantern,
@@ -50,7 +53,22 @@ print_room :: proc(room: Room)
 {
 	fmt.println(room.name)
 	fmt.println(room.description)
-	fmt.println("exits:", "...")
+	exits_line := "exits:"
+	if room.exits[.North] != .NullRoom {
+		exits_line = strings.concatenate( []string{exits_line, " north"} )
+	}
+	if room.exits[.East] != .NullRoom {
+		exits_line = strings.concatenate( []string{exits_line, " east"} )
+	}
+	if room.exits[.South] != .NullRoom {
+		exits_line = strings.concatenate( []string{exits_line, " south"} )
+	}
+	if room.exits[.West] != .NullRoom {
+		exits_line = strings.concatenate( []string{exits_line, " west"} )
+	}
+	if len(exits_line) > 6 {
+		fmt.println(exits_line)
+	}
 }
 
 get_input :: proc() -> string
@@ -73,59 +91,99 @@ main :: proc()
 	// ==== initialize rooms and items ====
 
 	rooms: [RoomID]Room = {
+		.NullRoom = {},
 		.Cottage = {
 			id = .Cottage,
 			name = "Cottage",
-			description = "A cozy wooden cottage."
+			description = "A cozy wooden cottage.",
+			exits = #partial {
+				.North = .Forest,
+				.East = .Riverbank,
+				.South = .Hill
+			}
 		},
 		.Forest = {
 			id = .Forest,
 			name = "Forest",
-			description = "Tall trees surround you."
+			description = "Tall trees surround you.",
+			exits = #partial {
+				.East = .Clearing,
+				.South = .Cottage
+			}
 		},
 		.Clearing = {
 			id = .Clearing,
 			name = "Clearing",
-			description = "Sunlight filters through the leaves."
+			description = "Sunlight filters through the leaves.",
+			exits = #partial {
+				.South = .SwampEdge,
+				.West = .Forest
+			}
 		},
 		.SwampEdge = {
 			id = .SwampEdge,
 			name = "SwampEdge",
-			description = "A murky swamp lies south."
+			description = "A murky swamp lies south.",
+			exits = #partial {
+				.North = .Clearing,
+				//.South = .Quicksand
+			}
 		},
 		.Hill = {
 			id = .Hill,
 			name = "Hill",
-			description = "From the hilltop you see a bridge and far beyond, a stone gate."
+			description = "From the hilltop you see a bridge and far beyond, a stone gate.",
+			exits = #partial {
+				.North = .Cottage,
+				.East = .DarkCave
+			}
 		},
 		.Riverbank = {
 			id = .Riverbank,
 			name = "Riverbank",
-			description = "Rapids block the river. A bridge lies east."
+			description = "Rapids block the river. A bridge lies east.",
+			exits = #partial {
+				.East = .Bridge,
+				.West = .Cottage
+			}
 		},
 		.Bridge = {
 			id = .Bridge,
 			name = "Bridge",
-			description = "Planks are missing. It might be repaired with something sturdy."
+			description = "Planks are missing. It might be repaired with something sturdy.",
+			exits = #partial {
+				.West = .Riverbank,
+			}
 		},
 		.StoneGate = {
 			id = .StoneGate,
 			name = "Stone Gate",
-			description = "A stone archway blocked by rubble."
+			description = "A stone archway blocked by rubble.",
+			exits = #partial {
+				.North = .Bridge
+			}
 		},
 		.DarkCave = {
 			id = .DarkCave,
 			name = "Dark Cave",
-			description = "Pitch black darkness."
+			description = "Pitch black darkness.",
+			exits = #partial {
+				.West = .Hill
+			}
 		},
 		.AncientShrine = {
 			id = .AncientShrine,
 			name = "Ancient Shrine",
-			description = "A silent shrine. On a pedestal rests a glowing artifact."
-		}
+			description = "A silent shrine. On a pedestal rests a glowing artifact.",
+			exits = #partial {
+				.West = .StoneGate
+			}
+		},
+		.Quicksand = {}
 	}
 
 	items: [ItemID]Item = {
+		.NullItem = {},
 		.Map = {
 			id = .Map,
 			name = "Map",
@@ -158,6 +216,6 @@ main :: proc()
 	// game loop
 	for true {
 		print_room(rooms[current_room])
-		input = get_input()
+		input := get_input()
 	}
 }
