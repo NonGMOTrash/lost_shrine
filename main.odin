@@ -5,6 +5,7 @@ import "core:strings"
 import "core:os"
 
 Dir :: enum u8 {
+	NullDir,
 	North,
 	South,
 	East,
@@ -49,6 +50,17 @@ Item :: struct {
 	location: RoomID
 }
 
+str_to_dir :: proc(s: string) -> Dir
+{
+	switch(s) {
+	case "n", "north": return .North
+	case "s", "south": return .South
+	case "e", "east" : return .East
+	case "w", "west" : return .West
+	case             : return .NullDir
+	}
+}
+
 print_room :: proc(room: Room)
 {
 	fmt.println(room.name)
@@ -71,6 +83,11 @@ print_room :: proc(room: Room)
 	}
 }
 
+print_help :: proc()
+{
+	fmt.println("<help text>")
+}
+
 get_input :: proc() -> string
 {
 	buffer: [256]byte
@@ -84,6 +101,11 @@ get_input :: proc() -> string
 	// string([]byte) gives an alias to the original string on the stack. that can't be returned because that string
 	// will go out of scope so there will just be nothing there. instead you have to return a copy, hence strings.clone().
 	return strings.clone(string(buffer[:n]))
+}
+
+travel :: proc(direction: Dir)
+{
+	fmt.println("travel(", direction, ")")
 }
 
 main :: proc()
@@ -213,9 +235,27 @@ main :: proc()
 
 	current_room: RoomID = .Cottage
 
+	print_room(rooms[current_room])
+
 	// game loop
 	for true {
-		print_room(rooms[current_room])
-		input := get_input()
+		
+		// === parsing input ===
+
+		input := strings.split(get_input(), " ")
+		trimmed_last_token, was_allocation := strings.remove_all(input[len(input)-1], "\r\n")
+		input[len(input)-1] = trimmed_last_token
+
+		switch (input[0]) {
+			case "look":
+				print_room(rooms[current_room]);
+			case "help":
+				print_help()
+			case "go":
+				travel(str_to_dir(input[1]))
+			//case "take":
+			case:
+				fmt.println("I don't understand that.")
+		}
 	}
 }
