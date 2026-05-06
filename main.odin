@@ -39,6 +39,7 @@ ItemID :: enum u8 {
 	Map,
 	Rope,
 	Lantern,
+	LitLantern,
 	Pickaxe,
 	Artifact
 }
@@ -103,9 +104,19 @@ get_input :: proc() -> string
 	return strings.clone(string(buffer[:n]))
 }
 
-travel :: proc(direction: Dir)
+travel :: proc(cur_room_id: RoomID, rooms: [RoomID]Room, direction: Dir) -> (new_room_id: RoomID)
 {
-	fmt.println("travel(", direction, ")")
+	new_room_id = rooms[cur_room_id].exits[direction]
+	if new_room_id == .NullRoom {
+		fmt.println("You can't go there.")
+		return cur_room_id
+	} else if new_room_id == .Quicksand {
+		// ...
+		return .Cottage
+	} else {
+		print_room(rooms[new_room_id])
+		return new_room_id
+	}
 }
 
 main :: proc()
@@ -221,6 +232,11 @@ main :: proc()
 			name = "Lantern",
 			description = "A brass lantern."
 		},
+		.LitLantern = {
+			id = .LitLantern,
+			name = "Lantern",
+			description = "A brass lantern. It is lit."
+		},
 		.Pickaxe = {
 			id = .Pickaxe,
 			name = "Pickaxe",
@@ -233,9 +249,9 @@ main :: proc()
 		}
 	}
 
-	current_room: RoomID = .Cottage
+	cur_room_id: RoomID = .Cottage
 
-	print_room(rooms[current_room])
+	print_room(rooms[cur_room_id])
 
 	// game loop
 	for true {
@@ -248,11 +264,14 @@ main :: proc()
 
 		switch (input[0]) {
 			case "look":
-				print_room(rooms[current_room]);
+				print_room(rooms[cur_room_id]);
 			case "help":
 				print_help()
+			case "exit", "quit":
+				fmt.println("Goodbye.")
+				return
 			case "go":
-				travel(str_to_dir(input[1]))
+				cur_room_id = travel(cur_room_id, rooms, str_to_dir(input[1]))
 			//case "take":
 			case:
 				fmt.println("I don't understand that.")
