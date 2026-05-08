@@ -48,7 +48,8 @@ Item :: struct {
 	id: ItemID,
 	name: string,
 	description: string,
-	location: RoomID
+	location: RoomID,
+	in_inventory: bool 
 }
 
 str_to_dir :: proc(s: string) -> Dir
@@ -62,11 +63,20 @@ str_to_dir :: proc(s: string) -> Dir
 	}
 }
 
-print_room :: proc(room: Room)
+print_room :: proc(room: Room, world_items: [ItemID]Item)
 {
 	fmt.println(room.name)
 	fmt.println(room.description)
-	exits_line := "exits:"
+	items_line := "You see:"
+	for item in world_items {
+		if item.location == room.id {
+			items_line, _ = strings.concatenate({items_line, " ", strings.to_lower(item.name)})
+		}
+	}
+	if len(items_line) > 8 {
+		fmt.println(items_line)
+	}
+	exits_line := "Exits:"
 	if room.exits[.North] != .NullRoom {
 		exits_line = strings.concatenate( []string{exits_line, " north"} )
 	}
@@ -104,9 +114,9 @@ get_input :: proc() -> string
 	return strings.clone(string(buffer[:n]))
 }
 
-travel :: proc(cur_room_id: RoomID, rooms: [RoomID]Room, direction: Dir) -> (new_room_id: RoomID)
+go :: proc(direction: Dir, cur_room_id: RoomID, world_rooms: [RoomID]Room, world_items: [ItemID]Item) -> (new_room_id: RoomID)
 {
-	new_room_id = rooms[cur_room_id].exits[direction]
+	new_room_id = world_rooms[cur_room_id].exits[direction]
 	if new_room_id == .NullRoom {
 		fmt.println("You can't go there.")
 		return cur_room_id
@@ -114,8 +124,19 @@ travel :: proc(cur_room_id: RoomID, rooms: [RoomID]Room, direction: Dir) -> (new
 		// ...
 		return .Cottage
 	} else {
-		print_room(rooms[new_room_id])
+		print_room(world_rooms[new_room_id], world_items)
 		return new_room_id
+	}
+}
+
+take :: proc(target_item: ItemID, world_items: ^[ItemID]Item, cur_room_id: RoomID)
+{
+	if world_items[target_item].location == cur_room_id && !world_items[target_item].in_inventory {
+		world_items[target_item].in_inventory = true
+		world_items[target_item].location = .NullRoom
+		fmt.println("You took the", strings.to_lower(world_items[target_item].name))
+	} else {
+		fmt.println("There is no such item here.")
 	}
 }
 
@@ -123,7 +144,7 @@ main :: proc()
 {
 	// ==== initialize rooms and items ====
 
-	rooms: [RoomID]Room = {
+	world_rooms: [RoomID]Room = {
 		.NullRoom = {},
 		.Cottage = {
 			id = .Cottage,
@@ -215,22 +236,25 @@ main :: proc()
 		.Quicksand = {}
 	}
 
-	items: [ItemID]Item = {
+	world_items: [ItemID]Item = {
 		.NullItem = {},
 		.Map = {
 			id = .Map,
 			name = "Map",
-			description = "A dusty old map."
+			description = "A dusty old map.",
+			location = .Cottage
 		},
 		.Rope = {
 			id = .Rope,
 			name = "Rope",
-			description = "A strong length of rope - long enough to span the bridge."
+			description = "A strong length of rope - long enough to span the bridge.",
+			location = .Forest
 		},
 		.Lantern = {
 			id = .Lantern,
 			name = "Lantern",
-			description = "A brass lantern."
+			description = "A brass lantern.",
+			location = .Clearing
 		},
 		.LitLantern = {
 			id = .LitLantern,
@@ -251,27 +275,58 @@ main :: proc()
 
 	cur_room_id: RoomID = .Cottage
 
-	print_room(rooms[cur_room_id])
+	print_room(world_rooms[cur_room_id], world_items)
 
-	// game loop
+	// === game loop ===
+
 	for true {
 		
-		// === parsing input ===
+		// == parsing input ==
 
-		input := strings.split(get_input(), " ")
-		trimmed_last_token, was_allocation := strings.remove_all(input[len(input)-1], "\r\n")
-		input[len(input)-1] = trimmed_last_token
-
-		switch (input[0]) {
+		// remove endline from the string, then break it by spaces
+		trimmed_input, _ := strings.remove_all(get_input(), "\r\n")
+		tokens: []string = strings.split(trimmed_input, " ")
+		cmd: string
+		arg: string 
+		if len(tokens) > 0 {
+			cmd = tokens[0]
+			if len(tokens) > 1 {
+				arg = tokens[1]
+			}
+		}
+		switch (tokens[0]) {
 			case "look":
-				print_room(rooms[cur_room_id]);
+				print_room(world_rooms[cur_room_id], world_items);
 			case "help":
 				print_help()
 			case "exit", "quit":
 				fmt.println("Goodbye.")
 				return
 			case "go":
-				cur_room_id = travel(cur_room_id, rooms, str_to_dir(input[1]))
+				// parse arg to Dir
+				dir: Dir
+				switch(arg) {
+					case "n", "north": dir = .North
+					case "s", "south": dir = .South
+					case "e", "east" : dir = .East
+					case "w", "west" : dir = .West
+					case             : dir = .NullDir
+				}
+				cur_room_id = go(dir, cur_room_id, world_rooms, world_items)
+			case "take":
+				// parse arg to ItemID
+				item_id: ItemID = .NullItem
+				for item in world_items {
+					if strings.to_lower(item.name) == arg {
+						item_id = item.id
+						break
+					}
+				}
+				if item_id != .NullItem {
+					take(item_id, &world_items, cur_room_id)
+				} else {
+					fmt.println("Take what?")
+				}
 			//case "take":
 			case:
 				fmt.println("I don't understand that.")
