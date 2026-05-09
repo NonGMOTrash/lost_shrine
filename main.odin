@@ -1,5 +1,6 @@
 package main
 
+import "vendor:wasm/WebGL"
 import "core:fmt"
 import "core:strings"
 import "core:os"
@@ -49,7 +50,8 @@ Item :: struct {
 	name: string,
 	description: string,
 	location: RoomID,
-	in_inventory: bool 
+	in_inventory: bool,
+	is_lit: bool
 }
 
 str_to_dir :: proc(s: string) -> Dir
@@ -114,18 +116,24 @@ get_input :: proc() -> string
 	return strings.clone(string(buffer[:n]))
 }
 
-go :: proc(direction: Dir, cur_room_id: RoomID, world_rooms: [RoomID]Room, world_items: [ItemID]Item) -> (new_room_id: RoomID)
+go :: proc(direction: Dir, cur_room_id: ^RoomID, world_rooms: [RoomID]Room, world_items: ^[ItemID]Item)
 {
-	new_room_id = world_rooms[cur_room_id].exits[direction]
+	new_room_id := world_rooms[cur_room_id^].exits[direction]
 	if new_room_id == .NullRoom {
 		fmt.println("You can't go there.")
-		return cur_room_id
 	} else if new_room_id == .Quicksand {
-		// ...
-		return .Cottage
+		fmt.println("You sink into quicksand! Everything goes black...")
+		for &item in world_items {
+			if item.in_inventory {
+				item.in_inventory = false
+				item.location = .SwampEdge
+			}
+		}
+		cur_room_id^ = .Cottage
+		print_room(world_rooms[.Cottage], world_items^)
 	} else {
-		print_room(world_rooms[new_room_id], world_items)
-		return new_room_id
+		cur_room_id^ = new_room_id
+		print_room(world_rooms[new_room_id], world_items^)
 	}
 }
 
@@ -138,6 +146,33 @@ take :: proc(target_item: ItemID, world_items: ^[ItemID]Item, cur_room_id: RoomI
 	} else {
 		fmt.println("There is no such item here.")
 	}
+}
+
+drop :: proc(target_item: ItemID, world_items: ^[ItemID]Item, cur_room_id: RoomID)
+{
+	for &item in world_items {
+		if item.id == target_item && item.in_inventory {
+			item.in_inventory = false
+			item.location = cur_room_id
+			fmt.println("You drop the", strings.to_lower(item.name))
+			return
+		}
+	}
+	fmt.println("You don't have that.")
+}
+
+print_inventory :: proc(world_items: [ItemID]Item)
+{
+	item_list := "You are carrying:"
+	for item in world_items {
+		if item.in_inventory {
+			item_list = strings.concatenate({item_list, " ", strings.to_lower(item.name)})
+		}
+	}
+	if item_list == "You are carrying:" {
+		item_list = "You are carrying nothing."
+	}
+	fmt.println(item_list)
 }
 
 main :: proc()
@@ -176,11 +211,11 @@ main :: proc()
 		},
 		.SwampEdge = {
 			id = .SwampEdge,
-			name = "SwampEdge",
+			name = "Swamp Edge",
 			description = "A murky swamp lies south.",
 			exits = #partial {
 				.North = .Clearing,
-				//.South = .Quicksand
+				.South = .Quicksand
 			}
 		},
 		.Hill = {
@@ -312,12 +347,12 @@ main :: proc()
 					case "w", "west" : dir = .West
 					case             : dir = .NullDir
 				}
-				cur_room_id = go(dir, cur_room_id, world_rooms, world_items)
+				go(dir, &cur_room_id, world_rooms, &world_items)
 			case "take":
 				// parse arg to ItemID
 				item_id: ItemID = .NullItem
 				for item in world_items {
-					if strings.to_lower(item.name) == arg {
+					if strings.to_lower(item.name) == strings.to_lower(arg) {
 						item_id = item.id
 						break
 					}
@@ -327,7 +362,24 @@ main :: proc()
 				} else {
 					fmt.println("Take what?")
 				}
-			//case "take":
+			case "drop":
+				// parse arg to ItemID
+				item_id: ItemID = .NullItem
+				for item in world_items {
+					if strings.to_lower(item.name) == strings.to_lower(arg) {
+						item_id = item.id
+						break
+					}
+				}
+				if item_id != .NullItem {
+					drop(item_id, &world_items, cur_room_id)
+				} else {
+					fmt.println("Drop what?")
+				}
+			case "inventory":
+				print_inventory(world_items)
+			case "hi":
+				fmt.println("hi")
 			case:
 				fmt.println("I don't understand that.")
 		}
