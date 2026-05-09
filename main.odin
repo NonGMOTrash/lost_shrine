@@ -117,7 +117,7 @@ go :: proc(direction: Dir, cur_room_id: ^RoomID, world_rooms: [RoomID]Room, worl
 	if new_room_id == .NullRoom {
 		fmt.println("You can't go there.")
 	} else if new_room_id == .Quicksand {
-		// quicksand
+		// quicksand event
 		fmt.println("You sink into quicksand! Everything goes black...")
 		for &item in world_items {
 			if item.in_inventory {
@@ -125,11 +125,12 @@ go :: proc(direction: Dir, cur_room_id: ^RoomID, world_rooms: [RoomID]Room, worl
 				item.location = .SwampEdge
 			}
 		}
+		world_items[.Lantern].is_lit = false
 		cur_room_id^ = .Cottage
 		print_room(world_rooms[.Cottage], world_items^)
 	} else if new_room_id == .DarkCave {
 		if !(world_items[.Lantern].in_inventory & world_items[.Lantern].is_lit) {
-			// darkness
+			// darkness event
 			fmt.println("It is utterly dark. You stumble and fall.")
 			game_state^ = .GameOver
 		}
@@ -164,17 +165,24 @@ drop :: proc(target_item: ItemID, world_items: ^[ItemID]Item, cur_room_id: RoomI
 	fmt.println("You don't have that.")
 }
 
-use :: proc(item_id: ItemID, world_items: ^[ItemID]Item, world_rooms: ^[RoomID]Room)
+use :: proc(item_id: ItemID, cur_room_id: RoomID, world_items: ^[ItemID]Item, world_rooms: ^[RoomID]Room)
 {
 	if !world_items[item_id].in_inventory {
 		fmt.println("You don't have that.")
 		return
 	}
-	if item_id == .Lantern {
-		if world_items[.Lantern].is_lit == false {
-			fmt.println("The lantern flickers to life.")
-			world_items[.Lantern].is_lit = true
-		}
+	if item_id == .Rope && cur_room_id == .Bridge {
+		fmt.println("You secure the rope and fix the bridge.")
+		world_rooms[.Bridge].exits[.South] = .StoneGate
+		world_rooms[.Bridge].description = "The bridge appears to be passable now."
+		print_room(world_rooms[.Bridge], world_items^)
+	} else if item_id == .Pickaxe && cur_room_id == .StoneGate {
+		fmt.println("You smash the rubble aside. The way is clear.")
+		world_rooms[.StoneGate].exits[.East] = .AncientShrine
+		world_rooms[.StoneGate].description = "A stone archway."
+	} else if item_id == .Lantern && world_items[.Lantern].is_lit == false {
+		fmt.println("The lantern flickers to life.")
+		world_items[.Lantern].is_lit = true
 	} else {
 		fmt.println("Nothing happened.")
 	}
@@ -344,9 +352,9 @@ main :: proc()
 		cmd: string
 		arg: string 
 		if len(tokens) > 0 {
-			cmd = tokens[0]
+			cmd = strings.to_lower(tokens[0])
 			if len(tokens) > 1 {
-				arg = tokens[1]
+				arg = strings.to_lower(tokens[1])
 			}
 		}
 		switch (tokens[0]) {
@@ -402,21 +410,25 @@ main :: proc()
 				// parse arg to ItemID
 				item_id: ItemID = .NullItem
 				for item in world_items {
-					if strings.to_lower(item.name) == strings.to_lower(arg) {
+					if strings.to_lower(item.name) == arg {
 						item_id = item.id
 						break
 					}
 				}
 				if item_id != .NullItem {
-					use(item_id, &world_items, &world_rooms)
+					use(item_id, cur_room_id, &world_items, &world_rooms)
 				} else {
 					fmt.println("Use what?")
 				}
 			case "light":
-				if strings.to_lower(arg) == "lantern" {
-					use(.Lantern, &world_items, &world_rooms)
+				if arg == "lantern" {
+					use(.Lantern, cur_room_id, &world_items, &world_rooms)
 				} else {
 					fmt.println("You can't light that.")
+				}
+			case "repair":
+				if arg == "bridge" {
+					use(.Rope, cur_room_id, &world_items, &world_rooms)
 				}
 			case "hi":
 				fmt.println("hi")
