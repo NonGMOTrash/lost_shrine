@@ -1,3 +1,6 @@
+# WARNING
+# written by chatgpt idk how this works lolol
+
 #!/usr/bin/env python3
 import argparse
 import difflib

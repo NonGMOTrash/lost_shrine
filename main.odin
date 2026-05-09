@@ -54,15 +54,10 @@ Item :: struct {
 	is_lit: bool
 }
 
-str_to_dir :: proc(s: string) -> Dir
-{
-	switch(s) {
-	case "n", "north": return .North
-	case "s", "south": return .South
-	case "e", "east" : return .East
-	case "w", "west" : return .West
-	case             : return .NullDir
-	}
+GameState :: enum u8 {
+	Playing,
+	GameOver,
+	Victory
 }
 
 print_room :: proc(room: Room, world_items: [ItemID]Item)
@@ -116,12 +111,13 @@ get_input :: proc() -> string
 	return strings.clone(string(buffer[:n]))
 }
 
-go :: proc(direction: Dir, cur_room_id: ^RoomID, world_rooms: [RoomID]Room, world_items: ^[ItemID]Item)
+go :: proc(direction: Dir, cur_room_id: ^RoomID, world_rooms: [RoomID]Room, world_items: ^[ItemID]Item, game_state: ^GameState)
 {
 	new_room_id := world_rooms[cur_room_id^].exits[direction]
 	if new_room_id == .NullRoom {
 		fmt.println("You can't go there.")
 	} else if new_room_id == .Quicksand {
+		// quicksand
 		fmt.println("You sink into quicksand! Everything goes black...")
 		for &item in world_items {
 			if item.in_inventory {
@@ -131,7 +127,14 @@ go :: proc(direction: Dir, cur_room_id: ^RoomID, world_rooms: [RoomID]Room, worl
 		}
 		cur_room_id^ = .Cottage
 		print_room(world_rooms[.Cottage], world_items^)
+	} else if new_room_id == .DarkCave {
+		if !(world_items[.Lantern].in_inventory & world_items[.Lantern].is_lit) {
+			// darkness
+			fmt.println("It is utterly dark. You stumble and fall.")
+			game_state^ = .GameOver
+		}
 	} else {
+		// normal case: move to room
 		cur_room_id^ = new_room_id
 		print_room(world_rooms[new_room_id], world_items^)
 	}
@@ -159,6 +162,22 @@ drop :: proc(target_item: ItemID, world_items: ^[ItemID]Item, cur_room_id: RoomI
 		}
 	}
 	fmt.println("You don't have that.")
+}
+
+use :: proc(item_id: ItemID, world_items: ^[ItemID]Item, world_rooms: ^[RoomID]Room)
+{
+	if !world_items[item_id].in_inventory {
+		fmt.println("You don't have that.")
+		return
+	}
+	if item_id == .Lantern {
+		if world_items[.Lantern].is_lit == false {
+			fmt.println("The lantern flickers to life.")
+			world_items[.Lantern].is_lit = true
+		}
+	} else {
+		fmt.println("Nothing happened.")
+	}
 }
 
 print_inventory :: proc(world_items: [ItemID]Item)
@@ -309,12 +328,13 @@ main :: proc()
 	}
 
 	cur_room_id: RoomID = .Cottage
+	game_state: GameState = .Playing
 
 	print_room(world_rooms[cur_room_id], world_items)
 
 	// === game loop ===
 
-	for true {
+	for (game_state == .Playing) {
 		
 		// == parsing input ==
 
@@ -347,7 +367,7 @@ main :: proc()
 					case "w", "west" : dir = .West
 					case             : dir = .NullDir
 				}
-				go(dir, &cur_room_id, world_rooms, &world_items)
+				go(dir, &cur_room_id, world_rooms, &world_items, &game_state)
 			case "take":
 				// parse arg to ItemID
 				item_id: ItemID = .NullItem
@@ -378,10 +398,36 @@ main :: proc()
 				}
 			case "inventory":
 				print_inventory(world_items)
+			case "use":
+				// parse arg to ItemID
+				item_id: ItemID = .NullItem
+				for item in world_items {
+					if strings.to_lower(item.name) == strings.to_lower(arg) {
+						item_id = item.id
+						break
+					}
+				}
+				if item_id != .NullItem {
+					use(item_id, &world_items, &world_rooms)
+				} else {
+					fmt.println("Use what?")
+				}
+			case "light":
+				if strings.to_lower(arg) == "lantern" {
+					use(.Lantern, &world_items, &world_rooms)
+				} else {
+					fmt.println("You can't light that.")
+				}
 			case "hi":
 				fmt.println("hi")
 			case:
 				fmt.println("I don't understand that.")
 		}
+	}
+
+	if game_state == .GameOver {
+		fmt.println("Game Over.")
+	} else if game_state == .Victory {
+		fmt.println("Victory!")
 	}
 }
