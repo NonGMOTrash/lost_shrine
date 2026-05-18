@@ -95,3 +95,8 @@ add_many :: proc(nums: ..int) -> (result: int)
 	}
 	return // same as return result 
 }
+
+main :: proc()
+{
+	// fmt.println("hi" == "die")
+}

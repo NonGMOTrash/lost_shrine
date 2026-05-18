@@ -56,44 +56,28 @@ Item :: struct {
 
 GameState :: enum u8 {
 	Playing,
+	Quit,
 	GameOver,
 	Victory
 }
 
-print_room :: proc(room: Room, world_items: [ItemID]Item)
-{
-	fmt.println(room.name)
-	fmt.println(room.description)
-	items_line := "You see:"
-	for item in world_items {
-		if item.location == room.id {
-			items_line, _ = strings.concatenate({items_line, " ", strings.to_lower(item.name)})
-		}
-	}
-	if len(items_line) > 8 {
-		fmt.println(items_line)
-	}
-	exits_line := "Exits:"
-	if room.exits[.North] != .NullRoom {
-		exits_line = strings.concatenate( []string{exits_line, " north"} )
-	}
-	if room.exits[.East] != .NullRoom {
-		exits_line = strings.concatenate( []string{exits_line, " east"} )
-	}
-	if room.exits[.South] != .NullRoom {
-		exits_line = strings.concatenate( []string{exits_line, " south"} )
-	}
-	if room.exits[.West] != .NullRoom {
-		exits_line = strings.concatenate( []string{exits_line, " west"} )
-	}
-	if len(exits_line) > 6 {
-		fmt.println(exits_line)
-	}
-}
+// === globals ===
 
-print_help :: proc()
-{
-	fmt.println("<help text>")
+print_outputs: bool = true
+output_log: [dynamic]string
+
+// === procedures ===
+
+output :: proc (args: ..any)
+{ // outputs to the string array, or if none is given, to stdout
+	msg: string = fmt.aprintln(..args)
+	// why the .. is necessary: when you do println("some msg"), you are passing in a single string
+	// but when you pass in args, you are passing in a varadic argument pack, which gets formatted as an array.
+	// to avoid that, you need to expand them first with ..
+	if print_outputs {
+		fmt.print(msg)
+	}
+	append(&output_log, msg)
 }
 
 get_input :: proc() -> string
@@ -111,14 +95,60 @@ get_input :: proc() -> string
 	return strings.clone(string(buffer[:n]))
 }
 
+print_room :: proc(room: Room, world_items: [ItemID]Item)
+{
+	// name
+	output(room.name)
+	// description
+	desc_line := room.description
+	if room.id == .Cottage && world_items[.Map].location == .Cottage {
+		desc_line = strings.concatenate({desc_line, " There's a table with a dusty old map."})
+	} else if room.id == .Forest && world_items[.Rope].location == .Forest {
+		desc_line = strings.concatenate({desc_line, " A rope dangles from a branch."})
+	}
+	output(desc_line)
+	// items
+	items_line := "You see:"
+	for item in world_items {
+		if item.location == room.id {
+			items_line, _ = strings.concatenate({items_line, " ", strings.to_lower(item.name)})
+		}
+	}
+	if len(items_line) > 8 {
+		output(items_line)
+	}
+	// exits
+	exits_line := "Exits:"
+	if room.exits[.North] != .NullRoom {
+		exits_line = strings.concatenate( []string{exits_line, " north"} )
+	}
+	if room.exits[.East] != .NullRoom {
+		exits_line = strings.concatenate( []string{exits_line, " east"} )
+	}
+	if room.exits[.South] != .NullRoom {
+		exits_line = strings.concatenate( []string{exits_line, " south"} )
+	}
+	if room.exits[.West] != .NullRoom {
+		exits_line = strings.concatenate( []string{exits_line, " west"} )
+	}
+	if len(exits_line) > 6 {
+		output(exits_line)
+	}
+}
+
+print_help :: proc()
+{
+	output("<help text>")
+}
+
 go :: proc(direction: Dir, cur_room_id: ^RoomID, world_rooms: [RoomID]Room, world_items: ^[ItemID]Item, game_state: ^GameState)
 {
 	new_room_id := world_rooms[cur_room_id^].exits[direction]
 	if new_room_id == .NullRoom {
-		fmt.println("You can't go there.")
+		output("You can't go there.")
 	} else if new_room_id == .Quicksand {
 		// quicksand event
-		fmt.println("You sink into quicksand! Everything goes black...")
+		output("You sink into quicksand! Everything goes black...")
 		for &item in world_items {
 			if item.in_inventory {
 				item.in_inventory = false
@@ -131,7 +161,7 @@ go :: proc(direction: Dir, cur_room_id: ^RoomID, world_rooms: [RoomID]Room, worl
 	} else if new_room_id == .DarkCave {
 		if !(world_items[.Lantern].in_inventory & world_items[.Lantern].is_lit) {
 			// darkness event
-			fmt.println("It is utterly dark. You stumble and fall.")
+			output("It is utterly dark. You stumble and fall...")
 			game_state^ = .GameOver
 		}
 	} else {
@@ -146,9 +176,9 @@ take :: proc(target_item: ItemID, world_items: ^[ItemID]Item, cur_room_id: RoomI
 	if world_items[target_item].location == cur_room_id && !world_items[target_item].in_inventory {
 		world_items[target_item].in_inventory = true
 		world_items[target_item].location = .NullRoom
-		fmt.println("You took the", strings.to_lower(world_items[target_item].name))
+		output("You took the", strings.to_lower(world_items[target_item].name))
 	} else {
-		fmt.println("There is no such item here.")
+		output("There is no such item here.")
 	}
 }
 
@@ -158,33 +188,33 @@ drop :: proc(target_item: ItemID, world_items: ^[ItemID]Item, cur_room_id: RoomI
 		if item.id == target_item && item.in_inventory {
 			item.in_inventory = false
 			item.location = cur_room_id
-			fmt.println("You drop the", strings.to_lower(item.name))
+			output("You drop the", strings.to_lower(item.name))
 			return
 		}
 	}
-	fmt.println("You don't have that.")
+	output("You don't have that.")
 }
 
 use :: proc(item_id: ItemID, cur_room_id: RoomID, world_items: ^[ItemID]Item, world_rooms: ^[RoomID]Room)
 {
 	if !world_items[item_id].in_inventory {
-		fmt.println("You don't have that.")
+		output("You don't have that.")
 		return
 	}
 	if item_id == .Rope && cur_room_id == .Bridge {
-		fmt.println("You secure the rope and fix the bridge.")
+		output("You secure the rope and fix the bridge.")
 		world_rooms[.Bridge].exits[.South] = .StoneGate
 		world_rooms[.Bridge].description = "The bridge appears to be passable now."
 		print_room(world_rooms[.Bridge], world_items^)
 	} else if item_id == .Pickaxe && cur_room_id == .StoneGate {
-		fmt.println("You smash the rubble aside. The way is clear.")
+		output("You smash the rubble aside. The way is clear.")
 		world_rooms[.StoneGate].exits[.East] = .AncientShrine
 		world_rooms[.StoneGate].description = "A stone archway."
 	} else if item_id == .Lantern && world_items[.Lantern].is_lit == false {
-		fmt.println("The lantern flickers to life.")
+		output("The lantern flickers to life.")
 		world_items[.Lantern].is_lit = true
 	} else {
-		fmt.println("Nothing happened.")
+		output("Nothing happened.")
 	}
 }
 
@@ -199,11 +229,13 @@ print_inventory :: proc(world_items: [ItemID]Item)
 	if item_list == "You are carrying:" {
 		item_list = "You are carrying nothing."
 	}
-	fmt.println(item_list)
+	output(item_list)
 }
 
-main :: proc()
+run_game :: proc(given_inputs: []string = {}) -> (exit_code: int)
 {
+	use_given_inputs: bool = (len(given_inputs) > 0)
+
 	// ==== initialize rooms and items ====
 
 	world_rooms: [RoomID]Room = {
@@ -248,7 +280,7 @@ main :: proc()
 		.Hill = {
 			id = .Hill,
 			name = "Hill",
-			description = "From the hilltop you see a bridge and far beyond, a stone gate.",
+			description = "From the hilltop you see a bridge and, far beyond, a stone gate.",
 			exits = #partial {
 				.North = .Cottage,
 				.East = .DarkCave
@@ -342,33 +374,52 @@ main :: proc()
 
 	// === game loop ===
 
+	input_counter: int = 0
 	for (game_state == .Playing) {
-		
+		// == read input ==
+
+		raw_input: string
+		if use_given_inputs {
+			if len(given_inputs) > input_counter {
+				// if remaining inputs passed to run_game are still there, use those
+				raw_input = given_inputs[input_counter]
+				input_counter += 1
+			} else {
+				output("(ran out of inputs")
+				return 0
+			}
+		} else {
+			// otherwise get the input from the CLI
+			raw_input = get_input()
+		}
+
 		// == parsing input ==
 
 		// remove endline from the string, then break it by spaces
-		trimmed_input, _ := strings.remove_all(get_input(), "\r\n")
+		trimmed_input, _ := strings.remove_all(raw_input, "\r\n")
 		tokens: []string = strings.split(trimmed_input, " ")
-		cmd: string
-		arg: string 
+		verb: string
+		noun: string
 		if len(tokens) > 0 {
-			cmd = strings.to_lower(tokens[0])
+			verb = strings.to_lower(tokens[0])
 			if len(tokens) > 1 {
-				arg = strings.to_lower(tokens[1])
+				noun = strings.to_lower(tokens[1])
 			}
 		}
-		switch (tokens[0]) {
+
+		// === execute command ===
+
+		switch (verb) {
 			case "look":
 				print_room(world_rooms[cur_room_id], world_items);
 			case "help":
 				print_help()
 			case "exit", "quit":
-				fmt.println("Goodbye.")
-				return
+				game_state = .Quit
 			case "go":
 				// parse arg to Dir
 				dir: Dir
-				switch(arg) {
+				switch(noun) {
 					case "n", "north": dir = .North
 					case "s", "south": dir = .South
 					case "e", "east" : dir = .East
@@ -377,10 +428,10 @@ main :: proc()
 				}
 				go(dir, &cur_room_id, world_rooms, &world_items, &game_state)
 			case "take":
-				// parse arg to ItemID
+				// parse noun to ItemID
 				item_id: ItemID = .NullItem
 				for item in world_items {
-					if strings.to_lower(item.name) == strings.to_lower(arg) {
+					if strings.to_lower(item.name) == strings.to_lower(noun) {
 						item_id = item.id
 						break
 					}
@@ -388,13 +439,13 @@ main :: proc()
 				if item_id != .NullItem {
 					take(item_id, &world_items, cur_room_id)
 				} else {
-					fmt.println("Take what?")
+					output("Take what?")
 				}
 			case "drop":
-				// parse arg to ItemID
+				// parse noun to ItemID
 				item_id: ItemID = .NullItem
 				for item in world_items {
-					if strings.to_lower(item.name) == strings.to_lower(arg) {
+					if strings.to_lower(item.name) == strings.to_lower(noun) {
 						item_id = item.id
 						break
 					}
@@ -402,15 +453,15 @@ main :: proc()
 				if item_id != .NullItem {
 					drop(item_id, &world_items, cur_room_id)
 				} else {
-					fmt.println("Drop what?")
+					output("Drop what?")
 				}
 			case "inventory":
 				print_inventory(world_items)
 			case "use":
-				// parse arg to ItemID
+				// parse noun to ItemID
 				item_id: ItemID = .NullItem
 				for item in world_items {
-					if strings.to_lower(item.name) == arg {
+					if strings.to_lower(item.name) == noun {
 						item_id = item.id
 						break
 					}
@@ -418,28 +469,43 @@ main :: proc()
 				if item_id != .NullItem {
 					use(item_id, cur_room_id, &world_items, &world_rooms)
 				} else {
-					fmt.println("Use what?")
+					output("Use what?")
 				}
 			case "light":
-				if arg == "lantern" {
+				if noun == "lantern" {
 					use(.Lantern, cur_room_id, &world_items, &world_rooms)
 				} else {
-					fmt.println("You can't light that.")
+					output("You can't light that.")
 				}
 			case "repair":
-				if arg == "bridge" {
+				if noun == "bridge" {
 					use(.Rope, cur_room_id, &world_items, &world_rooms)
 				}
 			case "hi":
-				fmt.println("hi")
+				output("hi")
+			case "":
+				output("No input given.")
 			case:
-				fmt.println("I don't understand that.")
+				output("I don't understand that.")
 		}
 	}
 
 	if game_state == .GameOver {
-		fmt.println("Game Over.")
+		output("Game Over.")
+		exit_code = 1
+	} else if game_state == .Quit {
+		output("Goodbye.")
+		exit_code = 0
 	} else if game_state == .Victory {
-		fmt.println("Victory!")
+		output("Victory!")
+		exit_code = 0
 	}
+
+	return exit_code
+}
+
+main :: proc()
+{
+	exit_code: int = run_game()
+	os.exit(exit_code)
 }
