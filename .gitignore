@@ -1,0 +1,4 @@
+./playground
+*.exe
+.vscode
+ols.json
