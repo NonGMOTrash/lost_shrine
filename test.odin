@@ -36,6 +36,8 @@ verify_against_test_files :: proc(t: ^testing.T)
 	}
 	defer delete(test_infos)
 	
+	num_tests: int = 0
+	num_passed: int = 0
 	for test_info in test_infos {
 		name, extension := os.split_filename(test_info.name)
 		if extension != "in" {
@@ -46,9 +48,9 @@ verify_against_test_files :: proc(t: ^testing.T)
 
 		inputs: []string = parse_test_file(test_info.fullpath)
 
-		// generate outputs 
+		// run game and generate outputs 
 		
-		run_game(inputs[:]) // writes to outputs global
+		run_game(inputs[:]) // writes to the outputs global
 
 		// read actual outputs 
 
@@ -61,6 +63,8 @@ verify_against_test_files :: proc(t: ^testing.T)
 		failed: bool = false
 		fmt.eprintln("")
 		fmt.eprintln(strings.center_justify(test_info.name, 80, "="))
+		// fmt.eprintln(inputs)
+		// fmt.eprintln(output_log)
 		for i := 0; i < len(expected_outputs); i += 1 {
 			actual: string
 			if i < len(output_log) {
@@ -72,20 +76,33 @@ verify_against_test_files :: proc(t: ^testing.T)
 			// note: using trim_space is necessary to normalize differences in endline characters
 			// that would otherwise cause the strings to appear different when comparing with ==
 
-			// print output
+			// print input and output
 			
 			fmt.eprintln(strings.concatenate({"expected: ", expected}))
 			fmt.eprintln(strings.concatenate({"actual  : ", actual}))
 			
 			// fail if there was a mismatch
-			if strings.compare(actual, expected) != 0 {
+			if actual != expected {
 				failed = true
-				fmt.eprintln("(test failed)")
 				break
 			}
 		}
-		// testing.expect(t, !failed, "output mismatch")
+
+		if failed {
+			fmt.eprintln("")
+			testing.expect(t, false, "test failed")
+		} else {
+			fmt.eprintln("(test passed :D)")
+			num_passed += 1
+		}
+		num_tests += 1
+		fmt.eprintln("")
 	}
 
-	subtest(t)
+	fmt.eprintln("")
+	fmt.eprintln("")
+	s := fmt.aprint(" passed ", num_passed, " / ", num_tests, " tests ")
+	fmt.eprintln(strings.center_justify(s, 80, "="))
+	fmt.eprintln("")
+	fmt.eprintln("")
 }

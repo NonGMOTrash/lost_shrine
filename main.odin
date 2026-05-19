@@ -4,6 +4,7 @@ import "vendor:wasm/WebGL"
 import "core:fmt"
 import "core:strings"
 import "core:os"
+import "core:sort"
 
 Dir :: enum u8 {
 	NullDir,
@@ -37,12 +38,12 @@ Room :: struct {
 
 ItemID :: enum u8 {
 	NullItem,
-	Map,
-	Rope,
+	Artifact,
 	Lantern,
 	LitLantern,
+	Map,
 	Pickaxe,
-	Artifact
+	Rope
 }
 
 Item :: struct {
@@ -138,14 +139,14 @@ print_room :: proc(room: Room, world_items: [ItemID]Item)
 
 print_help :: proc()
 {
-	output("<help text>")
+	output("Commands: go <north|east|south|west>, take <item>, drop <item>, examine <item>, use <item>, inventory, look, help, quit")
 }
 
 go :: proc(direction: Dir, cur_room_id: ^RoomID, world_rooms: [RoomID]Room, world_items: ^[ItemID]Item, game_state: ^GameState)
 {
 	new_room_id := world_rooms[cur_room_id^].exits[direction]
 	if new_room_id == .NullRoom {
-		output("You can't go there.")
+		output("You can't go that way.")
 	} else if new_room_id == .Quicksand {
 		// quicksand event
 		output("You sink into quicksand! Everything goes black...")
@@ -158,12 +159,10 @@ go :: proc(direction: Dir, cur_room_id: ^RoomID, world_rooms: [RoomID]Room, worl
 		world_items[.Lantern].is_lit = false
 		cur_room_id^ = .Cottage
 		print_room(world_rooms[.Cottage], world_items^)
-	} else if new_room_id == .DarkCave {
-		if !(world_items[.Lantern].in_inventory & world_items[.Lantern].is_lit) {
-			// darkness event
-			output("It is utterly dark. You stumble and fall...")
-			game_state^ = .GameOver
-		}
+	} else if new_room_id == .DarkCave && !(world_items[.Lantern].in_inventory && world_items[.Lantern].is_lit) {
+		// darkness event
+		output("It is utterly dark. You stumble and fall...")
+		game_state^ = .GameOver
 	} else {
 		// normal case: move to room
 		cur_room_id^ = new_room_id
@@ -171,12 +170,20 @@ go :: proc(direction: Dir, cur_room_id: ^RoomID, world_rooms: [RoomID]Room, worl
 	}
 }
 
-take :: proc(target_item: ItemID, world_items: ^[ItemID]Item, cur_room_id: RoomID)
+take :: proc(target_item: ItemID, world_items: ^[ItemID]Item, cur_room_id: RoomID, game_state: ^GameState)
 {
 	if world_items[target_item].location == cur_room_id && !world_items[target_item].in_inventory {
-		world_items[target_item].in_inventory = true
-		world_items[target_item].location = .NullRoom
-		output("You took the", strings.to_lower(world_items[target_item].name))
+		if target_item == .Artifact {
+			// victory case
+			output("As you grasp the artifact, light floods the shrine.")
+			output("You have retrieved the Artifact of the Ancients. Victory!")
+			game_state^ = .Victory
+		} else {
+			// normal case
+			world_items[target_item].in_inventory = true
+			world_items[target_item].location = .NullRoom
+			output(strings.concatenate({"You take the ", strings.to_lower(world_items[target_item].name), "."}))
+		}
 	} else {
 		output("There is no such item here.")
 	}
@@ -188,20 +195,24 @@ drop :: proc(target_item: ItemID, world_items: ^[ItemID]Item, cur_room_id: RoomI
 		if item.id == target_item && item.in_inventory {
 			item.in_inventory = false
 			item.location = cur_room_id
-			output("You drop the", strings.to_lower(item.name))
+			output(strings.concatenate({"You drop the ", strings.to_lower(world_items[target_item].name), "."}))
 			return
 		}
 	}
-	output("You don't have that.")
+	output("You aren't carrying that.")
 }
 
 use :: proc(item_id: ItemID, cur_room_id: RoomID, world_items: ^[ItemID]Item, world_rooms: ^[RoomID]Room)
 {
 	if !world_items[item_id].in_inventory {
-		output("You don't have that.")
+		//output("You don't have that.")
+		output("Nothing happens.")
 		return
 	}
-	if item_id == .Rope && cur_room_id == .Bridge {
+	if item_id == .Map {
+		output("You study the faded map. A river, a cave, and a gate are marked.")
+	}
+	else if item_id == .Rope && cur_room_id == .Bridge {
 		output("You secure the rope and fix the bridge.")
 		world_rooms[.Bridge].exits[.South] = .StoneGate
 		world_rooms[.Bridge].description = "The bridge appears to be passable now."
@@ -210,9 +221,13 @@ use :: proc(item_id: ItemID, cur_room_id: RoomID, world_items: ^[ItemID]Item, wo
 		output("You smash the rubble aside. The way is clear.")
 		world_rooms[.StoneGate].exits[.East] = .AncientShrine
 		world_rooms[.StoneGate].description = "A stone archway."
-	} else if item_id == .Lantern && world_items[.Lantern].is_lit == false {
-		output("The lantern flickers to life.")
-		world_items[.Lantern].is_lit = true
+		print_room(world_rooms[cur_room_id], world_items^)
+	} else if item_id == .Lantern {
+		if world_items[.Lantern].is_lit == false {
+			output("The lantern flickers to life.")
+			world_items[.Lantern].is_lit = true
+			world_items[.Lantern].description = "An old lantern. It is lit."
+		}
 	} else {
 		output("Nothing happened.")
 	}
@@ -232,8 +247,18 @@ print_inventory :: proc(world_items: [ItemID]Item)
 	output(item_list)
 }
 
+examine :: proc(item_id: ItemID, world_items: ^[ItemID]Item, cur_room_id: RoomID)
+{
+	if world_items[item_id].in_inventory || world_items[item_id].location == cur_room_id {
+		output(world_items[item_id].description)
+	} else {
+		output("You don't have that.")
+	}
+}
+
 run_game :: proc(given_inputs: []string = {}) -> (exit_code: int)
 {
+	output_log = {}
 	use_given_inputs: bool = (len(given_inputs) > 0)
 
 	// ==== initialize rooms and items ====
@@ -271,7 +296,7 @@ run_game :: proc(given_inputs: []string = {}) -> (exit_code: int)
 		.SwampEdge = {
 			id = .SwampEdge,
 			name = "Swamp Edge",
-			description = "A murky swamp lies south.",
+			description = "A murky swamp lies south. The ground looks unstable.",
 			exits = #partial {
 				.North = .Clearing,
 				.South = .Quicksand
@@ -308,13 +333,13 @@ run_game :: proc(given_inputs: []string = {}) -> (exit_code: int)
 			name = "Stone Gate",
 			description = "A stone archway blocked by rubble.",
 			exits = #partial {
-				.North = .Bridge
+				.North = .Bridge,
 			}
 		},
 		.DarkCave = {
 			id = .DarkCave,
 			name = "Dark Cave",
-			description = "Pitch black darkness.",
+			description = "The cave is damp and cold. Shadows dance on the walls.",
 			exits = #partial {
 				.West = .Hill
 			}
@@ -332,17 +357,11 @@ run_game :: proc(given_inputs: []string = {}) -> (exit_code: int)
 
 	world_items: [ItemID]Item = {
 		.NullItem = {},
-		.Map = {
-			id = .Map,
-			name = "Map",
-			description = "A dusty old map.",
-			location = .Cottage
-		},
-		.Rope = {
-			id = .Rope,
-			name = "Rope",
-			description = "A strong length of rope - long enough to span the bridge.",
-			location = .Forest
+		.Artifact = {
+			id = .Artifact,
+			name = "Artifact",
+			description = "A crystalline artifact pulsing with energy.",
+			location = .AncientShrine
 		},
 		.Lantern = {
 			id = .Lantern,
@@ -355,16 +374,24 @@ run_game :: proc(given_inputs: []string = {}) -> (exit_code: int)
 			name = "Lantern",
 			description = "A brass lantern. It is lit."
 		},
+		.Map = {
+			id = .Map,
+			name = "Map",
+			description = "A dusty old map, faded but readable.",
+			location = .Cottage
+		},
 		.Pickaxe = {
 			id = .Pickaxe,
 			name = "Pickaxe",
-			description = "A heavy pickaxe embedded in stone."
+			description = "A heavy pickaxe embedded in stone.",
+			location = .DarkCave
 		},
-		.Artifact = {
-			id = .Artifact,
-			name = "Artifact",
-			description = "A crystalline artifact pulsing with energy."
-		}
+		.Rope = {
+			id = .Rope,
+			name = "Rope",
+			description = "A strong length of rope - long enough to span the bridge.",
+			location = .Forest
+		},
 	}
 
 	cur_room_id: RoomID = .Cottage
@@ -437,7 +464,7 @@ run_game :: proc(given_inputs: []string = {}) -> (exit_code: int)
 					}
 				}
 				if item_id != .NullItem {
-					take(item_id, &world_items, cur_room_id)
+					take(item_id, &world_items, cur_room_id, &game_state)
 				} else {
 					output("Take what?")
 				}
@@ -457,6 +484,20 @@ run_game :: proc(given_inputs: []string = {}) -> (exit_code: int)
 				}
 			case "inventory":
 				print_inventory(world_items)
+			case "examine":
+				// parse noun to ItemID
+				item_id: ItemID = .NullItem
+				for item in world_items {
+					if strings.to_lower(item.name) == noun {
+						item_id = item.id
+						break
+					}
+				}
+				if item_id != .NullItem {
+					examine(item_id, &world_items, cur_room_id)
+				} else {
+					output("Examine what?")
+				}
 			case "use":
 				// parse noun to ItemID
 				item_id: ItemID = .NullItem
@@ -497,7 +538,6 @@ run_game :: proc(given_inputs: []string = {}) -> (exit_code: int)
 		output("Goodbye.")
 		exit_code = 0
 	} else if game_state == .Victory {
-		output("Victory!")
 		exit_code = 0
 	}
 

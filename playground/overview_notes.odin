@@ -98,5 +98,5 @@ add_many :: proc(nums: ..int) -> (result: int)
 
 main :: proc()
 {
-	// fmt.println("hi" == "die")
+	fmt.println("😎")
 }
