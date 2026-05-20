@@ -7,21 +7,21 @@ import "core:fmt"
 
 parse_test_file :: proc(test_path: string) -> []string
 {
-	input_data, err := os.read_entire_file(test_path, context.allocator)
-	if err != os.General_Error.None {
-		fmt.eprintln(strings.concatenate({"could not read test file at", test_path}))
+	input_data, read_err := os.read_entire_file(test_path, context.allocator)
+	if read_err != nil {
+		fmt.eprintln("could not find file at", test_path)
 	}
-	defer delete(input_data, context.allocator)
-	string_input_data := string(input_data)
+	defer delete(input_data)
+	string_input_data: string = string(input_data)
 
 	// actually parse
 
-	commands: [dynamic]string
-	for line in strings.split_lines_iterator(&string_input_data) {
-		append(&commands, line)
+	commands, split_err := strings.split_lines(string_input_data)
+	if split_err != nil {
+		fmt.eprintln("could not split string_input_data")
 	}
 
-	return commands[:]
+	return commands
 }
 
 @(test)
@@ -34,7 +34,7 @@ verify_against_test_files :: proc(t: ^testing.T)
 		fmt.eprintln("could not read the ./tests directory")
 		return
 	}
-	defer delete(test_infos)
+	defer os.file_info_slice_delete(test_infos, context.allocator)
 	
 	num_tests: int = 0
 	num_passed: int = 0
@@ -47,6 +47,7 @@ verify_against_test_files :: proc(t: ^testing.T)
 		// read input file 
 
 		inputs: []string = parse_test_file(test_info.fullpath)
+		defer delete(inputs)
 
 		// run game and generate outputs 
 		
@@ -56,15 +57,17 @@ verify_against_test_files :: proc(t: ^testing.T)
 
 		path: string = strings.trim_right(test_info.fullpath, ".in")
 		path = strings.concatenate({path, ".out"})
+		defer delete(path)
 		expected_outputs: []string = parse_test_file(path)
+		defer delete(expected_outputs)
 
 		// compare outputs to expected 
 
 		failed: bool = false
-		fmt.eprintln("")
-		fmt.eprintln(strings.center_justify(test_info.name, 80, "="))
-		// fmt.eprintln(inputs)
-		// fmt.eprintln(output_log)
+		header_line := strings.center_justify(test_info.name, 80, "=")
+		defer delete(header_line)
+		fmt.eprintln('\n', header_line)
+
 		for i := 0; i < len(expected_outputs); i += 1 {
 			actual: string
 			if i < len(output_log) {
@@ -77,9 +80,12 @@ verify_against_test_files :: proc(t: ^testing.T)
 			// that would otherwise cause the strings to appear different when comparing with ==
 
 			// print input and output
-			
-			fmt.eprintln(strings.concatenate({"expected: ", expected}))
-			fmt.eprintln(strings.concatenate({"actual  : ", actual}))
+			expected_line := strings.concatenate({"expected: ", expected})
+			defer delete(expected_line)
+			actual_line := strings.concatenate({"actual  : ", actual})
+			defer delete(actual_line)
+			fmt.eprintln(expected_line)
+			fmt.eprintln(actual_line)
 			
 			// fail if there was a mismatch
 			if actual != expected {
@@ -89,20 +95,20 @@ verify_against_test_files :: proc(t: ^testing.T)
 		}
 
 		if failed {
-			fmt.eprintln("")
-			testing.expect(t, false, "test failed")
+			fmt.eprint("\n\n")
+			testing.expect(t, false, "output mismatch")
 		} else {
-			fmt.eprintln("(test passed :D)")
+			testing.expect(t, true, "outputs match :D")
 			num_passed += 1
 		}
 		num_tests += 1
-		fmt.eprintln("")
 	}
 
-	fmt.eprintln("")
-	fmt.eprintln("")
-	s := fmt.aprint(" passed ", num_passed, " / ", num_tests, " tests ")
-	fmt.eprintln(strings.center_justify(s, 80, "="))
-	fmt.eprintln("")
-	fmt.eprintln("")
+	final_header_txt := fmt.aprint(" passed ", num_passed, " / ", num_tests, " tests ")
+	defer delete(final_header_txt)
+	final_header := strings.center_justify(final_header_txt, 80, "=")
+	defer delete(final_header)
+	fmt.eprintln("\n", final_header, "\n\n\n", sep="")
+
+	clean_output_log()
 }

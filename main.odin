@@ -1,10 +1,10 @@
 package main
 
-import "vendor:wasm/WebGL"
+import "base:runtime"
 import "core:fmt"
 import "core:strings"
 import "core:os"
-import "core:sort"
+import "core:mem"
 
 Dir :: enum u8 {
 	NullDir,
@@ -69,9 +69,9 @@ output_log: [dynamic]string
 
 // === procedures ===
 
-output :: proc (args: ..any)
+output :: proc (args: ..any, sep: string = " ")
 { // outputs to the string array, or if none is given, to stdout
-	msg: string = fmt.aprintln(..args)
+	msg: string = fmt.aprintln(..args, sep=sep)
 	// why the .. is necessary: when you do println("some msg"), you are passing in a single string
 	// but when you pass in args, you are passing in a varadic argument pack, which gets formatted as an array.
 	// to avoid that, you need to expand them first with ..
@@ -85,7 +85,7 @@ get_input :: proc() -> string
 {
 	buffer: [256]byte
 	// we have a (known size) array here. however, procedure parameters typically take slices instead, because they want
-	// they want to be able to take in an array of any length. therefore we have to pass in buffer as a slice, hence buffer[:]
+	// they want to be able to take in an array of any length. therefore we have to pass in buffer as a slice, hence the [:]
 	n, err := os.read(os.stdin, buffer[:])
 	if err != nil {
 		fmt.eprintln("error reading stdin: ", err)
@@ -101,39 +101,48 @@ print_room :: proc(room: Room, world_items: [ItemID]Item)
 	// name
 	output(room.name)
 	// description
-	desc_line := room.description
+	desc_line: string = room.description
+	appendage: string
 	if room.id == .Cottage && world_items[.Map].location == .Cottage {
-		desc_line = strings.concatenate({desc_line, " There's a table with a dusty old map."})
+		appendage = " There's a table with a dusty old map."
 	} else if room.id == .Forest && world_items[.Rope].location == .Forest {
-		desc_line = strings.concatenate({desc_line, " A rope dangles from a branch."})
+		appendage = " A rope dangles from a branch."
 	}
-	output(desc_line)
+	output(desc_line, appendage, sep="")
 	// items
-	items_line := "You see:"
+	items_line: strings.Builder
+	defer delete(items_line.buf)
+	fmt.sbprint(&items_line, "You see:")
 	for item in world_items {
 		if item.location == room.id {
-			items_line, _ = strings.concatenate({items_line, " ", strings.to_lower(item.name)})
+			lower_name := strings.to_lower(item.name)
+			fmt.sbprint(&items_line, " ", lower_name, sep="")
+			delete(lower_name)
 		}
 	}
-	if len(items_line) > 8 {
-		output(items_line)
+	items_line_str := strings.to_string(items_line)
+	if len(items_line_str) > 8 {
+		output(items_line_str)
 	}
 	// exits
-	exits_line := "Exits:"
+	exits_line: strings.Builder
+	defer delete(exits_line.buf)
+	fmt.sbprint(&exits_line, "Exits:")
 	if room.exits[.North] != .NullRoom {
-		exits_line = strings.concatenate( []string{exits_line, " north"} )
+		fmt.sbprint(&exits_line, " north")
 	}
 	if room.exits[.East] != .NullRoom {
-		exits_line = strings.concatenate( []string{exits_line, " east"} )
+		fmt.sbprint(&exits_line, " east")
 	}
 	if room.exits[.South] != .NullRoom {
-		exits_line = strings.concatenate( []string{exits_line, " south"} )
+		fmt.sbprint(&exits_line, " south")
 	}
 	if room.exits[.West] != .NullRoom {
-		exits_line = strings.concatenate( []string{exits_line, " west"} )
+		fmt.sbprint(&exits_line, " west")
 	}
-	if len(exits_line) > 6 {
-		output(exits_line)
+	s := strings.to_string(exits_line)
+	if len(s) > 7 {
+		output(s)
 	}
 }
 
@@ -182,7 +191,11 @@ take :: proc(target_item: ItemID, world_items: ^[ItemID]Item, cur_room_id: RoomI
 			// normal case
 			world_items[target_item].in_inventory = true
 			world_items[target_item].location = .NullRoom
-			output(strings.concatenate({"You take the ", strings.to_lower(world_items[target_item].name), "."}))
+			lower_name: string = strings.to_lower(world_items[target_item].name)
+			defer delete(lower_name)
+			s := strings.concatenate({"You take the ", lower_name, "."})
+			output(s)
+			delete(s)
 		}
 	} else {
 		output("There is no such item here.")
@@ -195,7 +208,11 @@ drop :: proc(target_item: ItemID, world_items: ^[ItemID]Item, cur_room_id: RoomI
 		if item.id == target_item && item.in_inventory {
 			item.in_inventory = false
 			item.location = cur_room_id
-			output(strings.concatenate({"You drop the ", strings.to_lower(world_items[target_item].name), "."}))
+			lower_name := strings.to_lower(world_items[target_item].name)
+			drop_line :=  strings.concatenate({"You drop the ", lower_name, "."})
+			output(drop_line)
+			delete(lower_name)
+			delete(drop_line)
 			return
 		}
 	}
@@ -235,16 +252,23 @@ use :: proc(item_id: ItemID, cur_room_id: RoomID, world_items: ^[ItemID]Item, wo
 
 print_inventory :: proc(world_items: [ItemID]Item)
 {
-	item_list := "You are carrying:"
+	item_list: strings.Builder
+	defer delete (item_list.buf)
+	fmt.sbprint(&item_list, "You are carrying:")
+	has_items: bool = false
 	for item in world_items {
 		if item.in_inventory {
-			item_list = strings.concatenate({item_list, " ", strings.to_lower(item.name)})
+			has_items = true
+			lower_name := strings.to_lower(item.name)
+			defer delete(lower_name)
+			fmt.sbprint(&item_list, " ", lower_name, sep="")
 		}
 	}
-	if item_list == "You are carrying:" {
-		item_list = "You are carrying nothing."
+	if !has_items {
+		output("You are carrying nothing.")
+	} else {
+		output(strings.to_string(item_list))
 	}
-	output(item_list)
 }
 
 examine :: proc(item_id: ItemID, world_items: ^[ItemID]Item, cur_room_id: RoomID)
@@ -256,9 +280,18 @@ examine :: proc(item_id: ItemID, world_items: ^[ItemID]Item, cur_room_id: RoomID
 	}
 }
 
+clean_output_log :: proc()
+{
+	for i := 0; i < len(output_log); i+=1 {
+		delete(output_log[i])
+	}
+	delete(output_log)
+	output_log = {}
+}
+
 run_game :: proc(given_inputs: []string = {}) -> (exit_code: int)
 {
-	output_log = {}
+	clean_output_log()
 	use_given_inputs: bool = (len(given_inputs) > 0)
 
 	// ==== initialize rooms and items ====
@@ -423,10 +456,13 @@ run_game :: proc(given_inputs: []string = {}) -> (exit_code: int)
 		// == parsing input ==
 
 		// remove endline from the string, then break it by spaces
-		trimmed_input, _ := strings.remove_all(raw_input, "\r\n")
-		tokens: []string = strings.split(trimmed_input, " ")
+		trimmed_input := strings.trim_space(raw_input)
+		tokens, _ := strings.split(trimmed_input, " ")
+		defer delete(tokens)
 		verb: string
 		noun: string
+		defer delete(verb)
+		defer delete(noun)
 		if len(tokens) > 0 {
 			verb = strings.to_lower(tokens[0])
 			if len(tokens) > 1 {
@@ -458,7 +494,9 @@ run_game :: proc(given_inputs: []string = {}) -> (exit_code: int)
 				// parse noun to ItemID
 				item_id: ItemID = .NullItem
 				for item in world_items {
-					if strings.to_lower(item.name) == strings.to_lower(noun) {
+					lower_name := strings.to_lower(item.name)
+					defer delete(lower_name)
+					if lower_name == noun {
 						item_id = item.id
 						break
 					}
@@ -472,7 +510,9 @@ run_game :: proc(given_inputs: []string = {}) -> (exit_code: int)
 				// parse noun to ItemID
 				item_id: ItemID = .NullItem
 				for item in world_items {
-					if strings.to_lower(item.name) == strings.to_lower(noun) {
+					lower_name := strings.to_lower(item.name)
+					defer delete(lower_name)
+					if lower_name == noun {
 						item_id = item.id
 						break
 					}
@@ -488,7 +528,9 @@ run_game :: proc(given_inputs: []string = {}) -> (exit_code: int)
 				// parse noun to ItemID
 				item_id: ItemID = .NullItem
 				for item in world_items {
-					if strings.to_lower(item.name) == noun {
+					lower_name := strings.to_lower(item.name)
+					defer delete(lower_name)
+					if lower_name == noun {
 						item_id = item.id
 						break
 					}
@@ -502,7 +544,9 @@ run_game :: proc(given_inputs: []string = {}) -> (exit_code: int)
 				// parse noun to ItemID
 				item_id: ItemID = .NullItem
 				for item in world_items {
-					if strings.to_lower(item.name) == noun {
+					lower_name := strings.to_lower(item.name)
+					defer delete(lower_name)
+					if lower_name == noun {
 						item_id = item.id
 						break
 					}
@@ -547,5 +591,6 @@ run_game :: proc(given_inputs: []string = {}) -> (exit_code: int)
 main :: proc()
 {
 	exit_code: int = run_game()
+	clean_output_log()
 	os.exit(exit_code)
 }
